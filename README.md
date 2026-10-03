@@ -28,7 +28,12 @@ Connection failures make sensors unavailable, with automatic recovery on the nex
 Generation energy counters are deferred until their units and width are verified;
 instantaneous power sensors cannot be used as energy counters directly.
 
-## Install for development
+## Installation
+
+See the [step-by-step installation and setup guide](docs/INSTALL.md), including
+manual installation, upgrades, troubleshooting and removal.
+
+### Quick start for development
 
 1. Check out the feature branch or the reviewed develop branch.
 2. Copy `custom_components/sungrow_local` into the HA configuration directory's
