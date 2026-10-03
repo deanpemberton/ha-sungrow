@@ -1,0 +1,48 @@
+{
+  "title": "Sungrow Local",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Sungrow locally",
+        "description": "Read-only SG5K-D telemetry. Leave protocol key empty for plain Modbus TCP. Encrypted legacy dongles require a key configured locally; never post it in an issue.",
+        "data": {
+          "host": "Inverter hostname or IP address",
+          "port": "TCP port",
+          "unit": "Inverter unit ID",
+          "scan_interval": "Polling interval (seconds)",
+          "protocol_key": "Protocol key (optional, 32 hexadecimal characters)"
+        }
+      },
+      "reconfigure": {
+        "title": "Connect to Sungrow locally",
+        "description": "Read-only SG5K-D telemetry. Leave protocol key empty for plain Modbus TCP. Encrypted legacy dongles require a key configured locally; never post it in an issue.",
+        "data": {
+          "host": "Inverter hostname or IP address",
+          "port": "TCP port",
+          "unit": "Inverter unit ID",
+          "scan_interval": "Polling interval (seconds)",
+          "protocol_key": "Protocol key (optional, 32 hexadecimal characters)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to read the inverter. Check network access, transport key, port and unit ID.",
+      "invalid_host": "Enter a hostname or IP address without a URL or path.",
+      "invalid_key": "Enter a 16-byte hexadecimal key or leave this empty."
+    },
+    "abort": {
+      "already_configured": "This inverter is already configured.",
+      "reconfigure_successful": "Configuration updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Polling",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  }
+}
