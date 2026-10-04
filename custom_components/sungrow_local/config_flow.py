@@ -8,7 +8,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import DEFAULT_INTERVAL, DOMAIN
-from .protocol import NegotiationRejected, ProtocolError, SungrowClient
+from .protocol import NegotiationRejected, ProtocolError, ReadRejected, SungrowClient
 
 
 def schema(defaults=None):
@@ -51,6 +51,8 @@ async def validate(data):
         ).read()
     except NegotiationRejected:
         return {"base": "negotiation_rejected"}
+    except ReadRejected:
+        return {"base": "read_rejected"}
     except ProtocolError:
         return {"base": "cannot_connect"}
     data["host"] = host

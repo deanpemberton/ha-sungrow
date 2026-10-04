@@ -29,7 +29,8 @@
       "cannot_connect": "Unable to read the inverter. Check network access, transport key, port and unit ID.",
       "invalid_host": "Enter a hostname or IP address without a URL or path.",
       "invalid_key": "Enter a 16-byte hexadecimal key or leave this empty.",
-      "negotiation_rejected": "The dongle rejected key negotiation. Verify its transport support and unit configuration. Do not share the protocol key."
+      "negotiation_rejected": "The dongle rejected key negotiation. Verify its transport support and unit configuration. Do not share the protocol key.",
+      "read_rejected": "The device responded but rejected the register read. Verify the inverter unit ID and transport support; the connection itself succeeded."
     },
     "abort": {
       "already_configured": "This inverter is already configured.",

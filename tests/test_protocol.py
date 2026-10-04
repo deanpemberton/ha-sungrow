@@ -82,7 +82,7 @@ async def test_invalid_modbus_replies_rejected(mutation):
     if mutation == "exception":
         body = bytes([0x84, 2])
     header = struct.pack(">HHHB", transaction, 0, len(body) + 1, unit)
-    reader.readexactly.side_effect = [header, body]
+    reader.readexactly.side_effect = [header, body[:2], body[2:]]
     with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
         with pytest.raises(ProtocolError):
             await SungrowClient("inverter.invalid").read()
@@ -95,7 +95,11 @@ async def test_plain_read_only_request_and_valid_reply():
     writer.close = lambda: None
     requests = []
     body = bytes([4, 58]) + struct.pack(">29H", *registers())
-    reader.readexactly.side_effect = [struct.pack(">HHHB", 1, 0, 61, 1), body]
+    reader.readexactly.side_effect = [
+        struct.pack(">HHHB", 1, 0, 61, 1),
+        body[:2],
+        body[2:],
+    ]
     with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
         result = await SungrowClient("inverter.invalid").read()
     assert requests == [struct.pack(">HHHBBHH", 1, 0, 6, 1, 4, 5007, 29)]
@@ -123,7 +127,8 @@ async def test_encrypted_negotiation_then_read_uses_separate_connections():
         writer.close = lambda: None
     reader1.readexactly.side_effect = [
         bytes.fromhex("686800000013f7"),
-        bytes([4, 16]) + public,
+        bytes([4, 16]),
+        public,
     ]
     body = bytes([4, 58]) + struct.pack(">29H", *registers())
     response = encrypt_frame(struct.pack(">HHHB", 1, 0, 61, 1) + body, session)
@@ -171,3 +176,18 @@ async def test_short_negotiation_exception_fails_without_waiting_for_25_bytes():
     assert reader.readexactly.await_args_list[0].args == (7,)
     assert reader.readexactly.await_args_list[1].args == (2,)
     writer.wait_closed.assert_awaited_once()
+
+
+async def test_legacy_exception_with_wrong_length_does_not_wait_for_missing_bytes():
+    reader, writer = AsyncMock(), AsyncMock()
+    writer.write = lambda _: None
+    writer.close = lambda: None
+    # Synthetic exception reproduces a legacy length-field quirk, not a capture.
+    reader.readexactly.side_effect = [
+        struct.pack(">HHHB", 1, 0, 6, 1),
+        bytes([0x84, 4]),
+    ]
+    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
+        with pytest.raises(ProtocolError, match="Inverter rejected register read"):
+            await SungrowClient("inverter.invalid").read()
+    assert reader.readexactly.await_args_list[1].args == (2,)

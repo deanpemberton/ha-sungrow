@@ -15,6 +15,10 @@ class NegotiationRejected(ProtocolError):
     """The dongle explicitly rejected the read-only key negotiation."""
 
 
+class ReadRejected(ProtocolError):
+    """The device returned a Modbus exception to a register read."""
+
+
 def encrypt_frame(payload: bytes, key: bytes) -> bytes:
     """Encode the legacy dongle envelope with a caller-supplied key."""
     padding = 16 - len(payload) % 16
@@ -112,9 +116,10 @@ class SungrowClient:
                 or not 3 <= length <= 19
             ):
                 raise ProtocolError("Invalid key negotiation reply")
-            body = await reader.readexactly(length - 1)
-            if len(body) == 2 and body[0] == 0x84:
+            prefix = await reader.readexactly(2)
+            if prefix[0] == 0x84:
                 raise NegotiationRejected("Key negotiation rejected by dongle")
+            body = prefix + await reader.readexactly(length - 3)
             if len(body) != 18 or body[:2] != bytes([4, 16]):
                 raise ProtocolError("Invalid key negotiation reply")
             public_key = body[2:]
@@ -153,7 +158,15 @@ class SungrowClient:
                         )
                         if not 3 <= length <= 254:
                             raise ProtocolError("Invalid Modbus length")
-                        body = await reader.readexactly(length - 1)
+                        prefix = await reader.readexactly(2)
+                        if transaction != 1 or protocol != 0 or unit != self.unit:
+                            raise ProtocolError("Invalid Modbus reply")
+                        if prefix[0] == 0x84:
+                            # Some legacy dongles echo the request length on exceptions.
+                            raise ReadRejected("Inverter rejected register read")
+                        if length != 61 or prefix != bytes([4, 58]):
+                            raise ProtocolError("Invalid Modbus reply")
+                        body = prefix + await reader.readexactly(length - 3)
                     transaction, protocol, length, unit = struct.unpack(">HHHB", header)
                     if (
                         transaction != 1
