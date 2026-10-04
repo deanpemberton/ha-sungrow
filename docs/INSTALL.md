@@ -152,3 +152,24 @@ information and personal details from any material you share.
 3. Remove dashboard references to deleted entities if needed.
 
 Removing this read-only integration does not change inverter settings.
+
+## Confirm the short-reply fix is installed
+
+The exception-reader fix is identified as version **0.1.1** in
+`custom_components/sungrow_local/manifest.json`. Download the latest
+`feature/1-local-telemetry` ZIP, replace the integration folder, and restart
+Home Assistant itself. Reloading a config entry does not reload Python modules.
+
+For a local installation check, run from the HA configuration directory:
+
+```sh
+cat custom_components/sungrow_local/manifest.json
+rg -n 'class ReadRejected|prefix = await reader.readexactly' custom_components/sungrow_local/protocol.py
+```
+
+If `rg` is not installed, inspect `protocol.py` in your editor. The plain-reader
+path must read a two-byte prefix and recognize `0x84` before reading the rest of
+the declared body. A device rejection should produce the specific setup error
+"The device responded but rejected the register read" promptly, rather than
+waiting for the ten-second timeout. This verifies error handling, not successful
+telemetry or device compatibility.
