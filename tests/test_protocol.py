@@ -121,7 +121,10 @@ async def test_encrypted_negotiation_then_read_uses_separate_connections():
     for writer in (writer1, writer2):
         writer.write = lambda data: requests.append(data)
         writer.close = lambda: None
-    reader1.readexactly.return_value = bytes.fromhex("686800000013f70410") + public
+    reader1.readexactly.side_effect = [
+        bytes.fromhex("686800000013f7"),
+        bytes([4, 16]) + public,
+    ]
     body = bytes([4, 58]) + struct.pack(">29H", *registers())
     response = encrypt_frame(struct.pack(">HHHB", 1, 0, 61, 1) + body, session)
     reader2.readexactly.side_effect = [response[:4], response[4:]]
@@ -151,4 +154,20 @@ async def test_timeout_closes_socket():
     with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
         with pytest.raises(ProtocolError):
             await SungrowClient("inverter.invalid", timeout=0.01).read()
+    writer.wait_closed.assert_awaited_once()
+
+
+async def test_short_negotiation_exception_fails_without_waiting_for_25_bytes():
+    reader, writer = AsyncMock(), AsyncMock()
+    writer.write = lambda _: None
+    writer.close = lambda: None
+    # Synthetic Modbus exception; no installation traffic or keys.
+    reader.readexactly.side_effect = [bytes.fromhex("686800000003f7"), bytes([0x84, 2])]
+    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
+        with pytest.raises(ProtocolError, match="Key negotiation rejected"):
+            await SungrowClient(
+                "inverter.invalid", protocol_key=bytes(range(16))
+            ).read()
+    assert reader.readexactly.await_args_list[0].args == (7,)
+    assert reader.readexactly.await_args_list[1].args == (2,)
     writer.wait_closed.assert_awaited_once()

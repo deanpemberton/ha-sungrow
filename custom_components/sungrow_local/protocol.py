@@ -11,6 +11,10 @@ class ProtocolError(Exception):
     """Communication or malformed data; messages contain no device details."""
 
 
+class NegotiationRejected(ProtocolError):
+    """The dongle explicitly rejected the read-only key negotiation."""
+
+
 def encrypt_frame(payload: bytes, key: bytes) -> bytes:
     """Encode the legacy dongle envelope with a caller-supplied key."""
     padding = 16 - len(payload) % 16
@@ -99,10 +103,21 @@ class SungrowClient:
             # Read-only key negotiation, addressed to the communication module.
             writer.write(bytes.fromhex("686800000006f7040ae70008"))
             await writer.drain()
-            response = await reader.readexactly(25)
-            if response[:9] != bytes.fromhex("686800000013f70410"):
+            header = await reader.readexactly(7)
+            transaction, protocol, length, unit = struct.unpack(">HHHB", header)
+            if (
+                transaction != 0x6868
+                or protocol != 0
+                or unit != 247
+                or not 3 <= length <= 19
+            ):
                 raise ProtocolError("Invalid key negotiation reply")
-            public_key = response[9:]
+            body = await reader.readexactly(length - 1)
+            if len(body) == 2 and body[0] == 0x84:
+                raise NegotiationRejected("Key negotiation rejected by dongle")
+            if len(body) != 18 or body[:2] != bytes([4, 16]):
+                raise ProtocolError("Invalid key negotiation reply")
+            public_key = body[2:]
             if public_key in (bytes(16), b"\xff" * 16):
                 return None
             return bytes(
