@@ -6,23 +6,18 @@ from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DEFAULT_INTERVAL, DOMAIN
-from .protocol import ProtocolError, SungrowClient
+from .driver import InverterDriver, create_driver
+from .protocol import ProtocolError
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class SungrowCoordinator(DataUpdateCoordinator):
-    """Update all sensors from one bounded read."""
+    """Update all sensors from one bounded inverter read."""
 
-    def __init__(self, hass, entry):
+    def __init__(self, hass, entry, driver: InverterDriver | None = None):
         config = entry.data | entry.options
-        key = config.get("protocol_key", "")
-        self.client = SungrowClient(
-            config["host"],
-            config.get("port", 502),
-            config.get("unit", 1),
-            bytes.fromhex(key) if key else None,
-        )
+        self.driver = driver or create_driver(config)
         super().__init__(
             hass,
             _LOGGER,
@@ -36,6 +31,6 @@ class SungrowCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         try:
-            return await self.client.read()
+            return await self.driver.read()
         except ProtocolError:
             raise UpdateFailed("Unable to read inverter") from None
