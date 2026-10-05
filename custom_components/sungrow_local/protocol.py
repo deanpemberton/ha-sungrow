@@ -9,6 +9,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 _LOGGER = logging.getLogger(__name__)
 
+SUNGROW_DEFAULT_PRIVATE_KEY = b"Grow#0*2Sun68CbE"
+
 
 class ProtocolError(Exception):
     """Communication or malformed data; messages contain no device details."""
@@ -90,7 +92,8 @@ class SungrowClient:
 
     def __init__(self, host, port=502, unit=1, protocol_key=None, timeout=10):
         self.host, self.port, self.unit = host, port, unit
-        self.protocol_key, self.timeout = protocol_key, timeout
+        self.protocol_key = protocol_key or SUNGROW_DEFAULT_PRIVATE_KEY
+        self.timeout = timeout
 
     @asynccontextmanager
     async def _connection(self):
@@ -207,17 +210,13 @@ class SungrowClient:
 
     async def read(self):
         """Fetch the required SG5K-D telemetry using small safe FC04 blocks."""
-        mode = "negotiated" if self.protocol_key is not None else "plain"
+        mode = "auto-negotiated"
         _LOGGER.warning(
             "Starting inverter telemetry read mode=%s unit=%d", mode, self.unit
         )
         try:
             async with asyncio.timeout(self.timeout):
-                key = (
-                    await self._session_key()
-                    if self.protocol_key is not None
-                    else None
-                )
+                key = await self._session_key()
                 registers: dict[int, int] = {}
                 for start, count in (
                     (5008, 1),
