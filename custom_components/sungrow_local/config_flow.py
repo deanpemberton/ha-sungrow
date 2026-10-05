@@ -1,5 +1,6 @@
 """UI-only setup; device configuration remains in HA storage."""
 
+import importlib
 import uuid
 
 import voluptuous as vol
@@ -7,8 +8,8 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
+from . import protocol
 from .const import DEFAULT_INTERVAL, DOMAIN
-from .protocol import NegotiationRejected, ProtocolError, ReadRejected, SungrowClient
 
 
 def schema(defaults=None):
@@ -35,6 +36,14 @@ def schema(defaults=None):
 
 
 async def validate(data):
+    """Validate one setup attempt.
+
+    During active hardware development the protocol module is reloaded here so
+    transport changes can be tested without restarting Home Assistant Core.
+    Remove this development hook before release.
+    """
+    current_protocol = importlib.reload(protocol)
+
     host = data["host"].strip().lower()
     if not host or any(char in host for char in "/@?# \\"):
         return {"host": "invalid_host"}
@@ -46,14 +55,14 @@ async def validate(data):
     except ValueError:
         return {"protocol_key": "invalid_key"}
     try:
-        await SungrowClient(
+        await current_protocol.SungrowClient(
             host, data.get("port", 502), data.get("unit", 1), key_bytes
         ).read()
-    except NegotiationRejected:
+    except current_protocol.NegotiationRejected:
         return {"base": "negotiation_rejected"}
-    except ReadRejected:
+    except current_protocol.ReadRejected:
         return {"base": "read_rejected"}
-    except ProtocolError:
+    except current_protocol.ProtocolError:
         return {"base": "cannot_connect"}
     data["host"] = host
     data["protocol_key"] = key
@@ -81,7 +90,6 @@ class SungrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             errors = await validate(user_input)
             if not errors:
-                # Random installation identifier: never put host, MAC or serial in IDs.
                 await self.async_set_unique_id(uuid.uuid4().hex)
                 return self.async_create_entry(title="Sungrow Local", data=user_input)
         return self.async_show_form(
