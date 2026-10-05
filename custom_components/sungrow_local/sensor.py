@@ -52,11 +52,12 @@ class SungrowSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+        metadata = coordinator.driver.metadata
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.unique_id)},
-            name="Sungrow inverter",
-            manufacturer="Sungrow",
-            model="SG5K-D",
+            name=f"{metadata.manufacturer} inverter",
+            manufacturer=metadata.manufacturer,
+            model=metadata.model,
         )
 
     @property
