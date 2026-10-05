@@ -35,7 +35,7 @@ def decrypt_frame(frame: bytes, key: bytes, transaction: int) -> bytes:
     if len(frame) < 4:
         raise ProtocolError("Invalid encrypted frame")
     version, reserved, length, padding = frame[:4]
-    _LOGGER.info("Encrypted reply envelope version=%d reserved=%d length=%d padding=%d", version, reserved, length, padding)
+    _LOGGER.warning("Encrypted reply envelope version=%d reserved=%d length=%d padding=%d", version, reserved, length, padding)
     if version != 1 or reserved != 0 or not 1 <= padding <= 16 or length < 9 or length + padding != len(frame) - 4 or (length + padding) % 16:
         raise ProtocolError("Invalid encrypted frame")
     decryptor = Cipher(algorithms.AES(key), modes.ECB()).decryptor()
@@ -76,101 +76,101 @@ class SungrowClient:
 
     @asynccontextmanager
     async def _connection(self):
-        _LOGGER.info("Opening inverter TCP connection")
+        _LOGGER.warning("Opening inverter TCP connection")
         reader, writer = await asyncio.open_connection(self.host, self.port)
-        _LOGGER.info("Inverter TCP connection established")
+        _LOGGER.warning("Inverter TCP connection established")
         try:
             yield reader, writer
         finally:
             writer.close()
             with suppress(OSError):
                 await writer.wait_closed()
-            _LOGGER.info("Inverter TCP connection closed")
+            _LOGGER.warning("Inverter TCP connection closed")
 
     async def _session_key(self):
-        _LOGGER.info("Starting read-only protocol key negotiation")
+        _LOGGER.warning("Starting read-only protocol key negotiation")
         async with self._connection() as (reader, writer):
             writer.write(bytes.fromhex("686800000006f7040ae70008"))
             await writer.drain()
             header = await reader.readexactly(7)
             transaction, protocol, length, unit = struct.unpack(">HHHB", header)
-            _LOGGER.info("Key negotiation header transaction=%d protocol=%d length=%d unit=%d", transaction, protocol, length, unit)
+            _LOGGER.warning("Key negotiation header transaction=%d protocol=%d length=%d unit=%d", transaction, protocol, length, unit)
             if transaction != 0x6868 or protocol != 0 or unit != 247 or not 3 <= length <= 19:
-                _LOGGER.info("Key negotiation failed header validation")
+                _LOGGER.warning("Key negotiation failed header validation")
                 raise ProtocolError("Invalid key negotiation reply")
             prefix = await reader.readexactly(2)
             if prefix[0] == 0x84:
-                _LOGGER.info("Key negotiation rejected with Modbus exception code=%d", prefix[1])
+                _LOGGER.warning("Key negotiation rejected with Modbus exception code=%d", prefix[1])
                 raise NegotiationRejected("Key negotiation rejected by dongle")
             body = prefix + await reader.readexactly(length - 3)
             if len(body) != 18 or body[:2] != bytes([4, 16]):
-                _LOGGER.info("Key negotiation failed body validation function=%d byte_count=%d body_length=%d", body[0] if body else -1, body[1] if len(body) > 1 else -1, len(body))
+                _LOGGER.warning("Key negotiation failed body validation function=%d byte_count=%d body_length=%d", body[0] if body else -1, body[1] if len(body) > 1 else -1, len(body))
                 raise ProtocolError("Invalid key negotiation reply")
             public_key = body[2:]
             if public_key in (bytes(16), b"\xff" * 16):
-                _LOGGER.info("Key negotiation returned sentinel key; continuing with plain Modbus")
+                _LOGGER.warning("Key negotiation returned sentinel key; continuing with plain Modbus")
                 return None
-            _LOGGER.info("Key negotiation succeeded; encrypted register read required")
+            _LOGGER.warning("Key negotiation succeeded; encrypted register read required")
             return bytes(a ^ b for a, b in zip(public_key, self.protocol_key, strict=True))
 
     async def read(self):
         """Fetch one coherent two-MPPT snapshot without leaking connection details."""
         mode = "negotiated" if self.protocol_key is not None else "plain"
-        _LOGGER.info("Starting inverter telemetry read mode=%s unit=%d", mode, self.unit)
+        _LOGGER.warning("Starting inverter telemetry read mode=%s unit=%d", mode, self.unit)
         try:
             async with asyncio.timeout(self.timeout):
                 key = await self._session_key() if self.protocol_key is not None else None
                 async with self._connection() as (reader, writer):
                     request = struct.pack(">HHHBBHH", 1, 0, 6, self.unit, 4, 5007, 29)
                     encrypted = key is not None
-                    _LOGGER.info("Sending read-only input-register request start=5007 count=29 encrypted=%s", encrypted)
+                    _LOGGER.warning("Sending read-only input-register request start=5007 count=29 encrypted=%s", encrypted)
                     writer.write(encrypt_frame(request, key) if encrypted else request)
                     await writer.drain()
                     if encrypted:
                         envelope = await reader.readexactly(4)
                         size = envelope[2] + envelope[3]
-                        _LOGGER.info("Encrypted reply announced payload size=%d", size)
+                        _LOGGER.warning("Encrypted reply announced payload size=%d", size)
                         if size < 16 or size > 256 or size % 16:
-                            _LOGGER.info("Encrypted reply failed size validation")
+                            _LOGGER.warning("Encrypted reply failed size validation")
                             raise ProtocolError("Invalid encrypted frame")
                         frame = decrypt_frame(envelope + await reader.readexactly(size), key, 1)
                         header, body = frame[:7], frame[7:]
                     else:
                         header = await reader.readexactly(7)
                         transaction, protocol, length, unit = struct.unpack(">HHHB", header)
-                        _LOGGER.info("Modbus reply header transaction=%d protocol=%d length=%d unit=%d", transaction, protocol, length, unit)
+                        _LOGGER.warning("Modbus reply header transaction=%d protocol=%d length=%d unit=%d", transaction, protocol, length, unit)
                         if not 3 <= length <= 254:
-                            _LOGGER.info("Modbus reply failed length validation")
+                            _LOGGER.warning("Modbus reply failed length validation")
                             raise ProtocolError("Invalid Modbus length")
                         prefix = await reader.readexactly(2)
-                        _LOGGER.info("Modbus reply function=%d second_byte=%d", prefix[0], prefix[1])
+                        _LOGGER.warning("Modbus reply function=%d second_byte=%d", prefix[0], prefix[1])
                         if transaction != 1 or protocol != 0 or unit != self.unit:
-                            _LOGGER.info("Modbus reply failed transaction/protocol/unit validation")
+                            _LOGGER.warning("Modbus reply failed transaction/protocol/unit validation")
                             raise ProtocolError("Invalid Modbus reply")
                         if prefix[0] == 0x84:
-                            _LOGGER.info("Register read rejected with Modbus exception code=%d", prefix[1])
+                            _LOGGER.warning("Register read rejected with Modbus exception code=%d", prefix[1])
                             raise ReadRejected("Inverter rejected register read")
                         if length != 61 or prefix != bytes([4, 58]):
-                            _LOGGER.info("Modbus reply failed expected function/byte-count validation")
+                            _LOGGER.warning("Modbus reply failed expected function/byte-count validation")
                             raise ProtocolError("Invalid Modbus reply")
                         body = prefix + await reader.readexactly(length - 3)
                     transaction, protocol, length, unit = struct.unpack(">HHHB", header)
-                    _LOGGER.info("Validating telemetry reply transaction=%d protocol=%d length=%d unit=%d body_length=%d", transaction, protocol, length, unit, len(body))
+                    _LOGGER.warning("Validating telemetry reply transaction=%d protocol=%d length=%d unit=%d body_length=%d", transaction, protocol, length, unit, len(body))
                     if transaction != 1 or protocol != 0 or unit != self.unit or length != len(body) + 1 or len(body) != 60 or body[:2] != bytes([4, 58]):
-                        _LOGGER.info("Telemetry reply failed final validation")
+                        _LOGGER.warning("Telemetry reply failed final validation")
                         raise ProtocolError("Invalid Modbus reply")
                     snapshot = decode_snapshot(list(struct.unpack(">29H", body[2:])))
-                    _LOGGER.info("Telemetry read succeeded")
+                    _LOGGER.warning("Telemetry read succeeded")
                     return snapshot
         except TimeoutError:
-            _LOGGER.info("Inverter telemetry read timed out")
+            _LOGGER.warning("Inverter telemetry read timed out")
             raise ProtocolError("Unable to read inverter") from None
         except asyncio.IncompleteReadError as err:
-            _LOGGER.info("Inverter closed connection early expected=%d received=%d", err.expected, len(err.partial))
+            _LOGGER.warning("Inverter closed connection early expected=%d received=%d", err.expected, len(err.partial))
             raise ProtocolError("Unable to read inverter") from None
         except OSError as err:
-            _LOGGER.info("Inverter TCP operation failed error_type=%s", type(err).__name__)
+            _LOGGER.warning("Inverter TCP operation failed error_type=%s", type(err).__name__)
             raise ProtocolError("Unable to read inverter") from None
         except (ValueError, struct.error) as err:
-            _LOGGER.info("Inverter reply could not be decoded error_type=%s", type(err).__name__)
+            _LOGGER.warning("Inverter reply could not be decoded error_type=%s", type(err).__name__)
             raise ProtocolError("Unable to read inverter") from None
