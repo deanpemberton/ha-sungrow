@@ -1,12 +1,13 @@
 """Coordinated polling avoids one connection per sensor."""
 
+import importlib
 import logging
 from datetime import timedelta
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from . import protocol
 from .const import DEFAULT_INTERVAL, DOMAIN
-from .protocol import ProtocolError, SungrowClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,7 +18,9 @@ class SungrowCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, entry):
         config = entry.data | entry.options
         key = config.get("protocol_key", "")
-        self.client = SungrowClient(
+        current_protocol = importlib.reload(protocol)
+        self.protocol = current_protocol
+        self.client = current_protocol.SungrowClient(
             config["host"],
             config.get("port", 502),
             config.get("unit", 1),
@@ -37,5 +40,5 @@ class SungrowCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         try:
             return await self.client.read()
-        except ProtocolError:
+        except self.protocol.ProtocolError:
             raise UpdateFailed("Unable to read inverter") from None
