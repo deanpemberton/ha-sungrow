@@ -4,7 +4,10 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .const import DEFAULT_INTERVAL, DEFAULT_MQTT_TOPIC, DOMAIN
 from .driver import DriverError, create_driver
