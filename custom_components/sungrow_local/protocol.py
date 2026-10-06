@@ -105,14 +105,7 @@ def decode_registers(registers: dict[int, int]) -> dict[str, float | int | None]
     pv2_voltage = u16(5013, 10)
     pv2_current = u16(5014, 10)
 
-    meter_raw = raw(5083)
-    meter_indicator = raw(5084)
-    if meter_raw == 0xFFFF and meter_indicator != 0xFFFF:
-        grid_power = None
-    elif meter_indicator == 0xFFFF:
-        grid_power = -(0xFFFF - meter_raw)
-    else:
-        grid_power = meter_raw
+
 
     data: dict[str, float | int | None] = {
         "nominal_active_power": None if u16(5001) is None else u16(5001) * 100,
@@ -151,14 +144,18 @@ def decode_registers(registers: dict[int, int]) -> dict[str, float | int | None]
         "nominal_reactive_power": (
             None if u16(5049) is None else u16(5049) * 100
         ),
-        "grid_power": grid_power,
+        "grid_power": s32(5083),
+        "meter_phase_a_power": s32(5085),
+        "meter_phase_b_power": s32(5087),
+        "meter_phase_c_power": s32(5089),
         "house_power": u16(5091),
-        "daily_import_energy": u16(5097, 10),
+        "daily_import_energy": u32(5097, 10),
         "daily_consumption": u16(5101, 10),
         "total_consumption": u16(5103, 10),
         "daily_running_time": u16(5113),
         "total_energy": u32(5144, 10),
         "negative_voltage_to_ground": s16(5146, 10),
+        "frequency_high_resolution": u16(5148, 100),
     }
     return data
 
