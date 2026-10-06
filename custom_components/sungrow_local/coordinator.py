@@ -27,8 +27,13 @@ class SungrowCoordinator(DataUpdateCoordinator):
             config.get("unit", 1),
             bytes.fromhex(key) if key else None,
         )
-        self._mqtt_topic = config.get("mqtt_topic", DEFAULT_MQTT_TOPIC).strip()
-        prefix = (\n            self._mqtt_topic.rsplit("/", 1)[0]\n            if "/" in self._mqtt_topic\n            else self._mqtt_topic\n        )
+        self._mqtt_topic = config.get(
+            "mqtt_topic", DEFAULT_MQTT_TOPIC
+        ).strip()
+        if "/" in self._mqtt_topic:
+            prefix = self._mqtt_topic.rsplit("/", 1)[0]
+        else:
+            prefix = self._mqtt_topic
         self._mqtt_status_topic = f"{prefix}/status"
         super().__init__(
             hass,
@@ -42,7 +47,10 @@ class SungrowCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_publish_mqtt(self, snapshot, available: bool) -> None:
-        if not self._mqtt_topic or not self.hass.services.has_service("mqtt", "publish"):
+        if (
+            not self._mqtt_topic
+            or not self.hass.services.has_service("mqtt", "publish")
+        ):
             return
         try:
             await self.hass.services.async_call(
@@ -65,7 +73,9 @@ class SungrowCoordinator(DataUpdateCoordinator):
                     "publish",
                     {
                         "topic": self._mqtt_topic,
-                        "payload": json.dumps(payload, separators=(",", ":")),
+                        "payload": json.dumps(
+                            payload, separators=(",", ":")
+                        ),
                         "retain": True,
                         "qos": 0,
                     },
