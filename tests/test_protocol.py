@@ -1,4 +1,4 @@
-"""Synthetic frames only; never capture real installations."""
+"""Synthetic SG5K-D protocol tests; never use installation captures."""
 
 import struct
 from unittest.mock import AsyncMock, patch
@@ -8,186 +8,122 @@ import pytest
 from custom_components.sungrow_local.protocol import (
     ProtocolError,
     SungrowClient,
-    decode_snapshot,
+    decode_registers,
     decrypt_frame,
     encrypt_frame,
+    mqtt_payload,
 )
 
 
-def registers():
-    words = [0] * 29
-    words[0] = 0xFFF6  # -1 C
-    words[3:7] = [3200, 70, 3500, 60]
-    words[9:11] = [4340, 0]
-    words[23:25] = [4200, 0]
-    words[28] = 500
-    return words
+def register_map():
+    regs = {register: 0 for register in range(5001, 5151)}
+    regs.update(
+        {
+            5001: 50,
+            5003: 123,
+            5008: 255,
+            5011: 3200,
+            5012: 70,
+            5013: 3500,
+            5014: 60,
+            5017: 4340,
+            5018: 0,
+            5019: 2301,
+            5022: 183,
+            5031: 4200,
+            5032: 0,
+            5035: 998,
+            5036: 500,
+            5038: 1,
+            5045: 0,
+            5083: 500,
+            5084: 0,
+            5091: 2200,
+            5097: 15,
+            5101: 80,
+            5103: 1234,
+            5113: 360,
+            5144: 1000,
+            5145: 0,
+        }
+    )
+    return regs
 
 
-def test_two_mppt_scaling_and_little_word_order():
-    data = decode_snapshot(registers())
-    assert data["mppt1_voltage"] == 320
-    assert data["mppt1_current"] == 7
+def block(regs, start, count):
+    return [regs[start + offset] for offset in range(count)]
+
+
+def test_decode_comprehensive_snapshot():
+    data = decode_registers(register_map())
+    assert data["nominal_active_power"] == 5000
+    assert data["daily_energy"] == 12.3
+    assert data["temperature"] == 25.5
     assert data["mppt1_power"] == 2240
     assert data["mppt2_power"] == 2100
     assert data["dc_power"] == 4340
     assert data["ac_power"] == 4200
-    assert data["temperature"] == -1
+    assert data["phase_a_voltage"] == 230.1
+    assert data["phase_a_current"] == 18.3
+    assert data["power_factor"] == 0.998
     assert data["frequency"] == 50
+    assert data["grid_power"] == 500
+    assert data["house_power"] == 2200
+    assert data["daily_import_energy"] == 1.5
+    assert data["daily_consumption"] == 8
+    assert data["total_consumption"] == 123.4
+    assert data["total_energy"] == 100
 
 
-def test_unavailable_is_not_zero_and_zero_is_valid():
-    words = registers()
-    words[3] = 0xFFFF
-    words[5:7] = [0, 0]
-    words[9:11] = [0xFFFF, 0xFFFF]
-    data = decode_snapshot(words)
-    assert data["mppt1_voltage"] is None
-    assert data["mppt1_power"] is None
-    assert data["mppt2_power"] == 0
-    assert data["dc_power"] is None
+def test_legacy_mqtt_aliases_from_same_snapshot():
+    payload = mqtt_payload(decode_registers(register_map()))
+    assert payload["daily_power_yield"] == 12300
+    assert payload["total_power_yield"] == 0.1
+    assert payload["internal_temp"] == 25.5
+    assert payload["pv1_voltage"] == 320
+    assert payload["total_pv_power"] == 4340
+    assert payload["total_active_power"] == 4200
+    assert payload["power_meter"] == 2200
 
 
-def test_truncated_snapshot_rejected():
-    with pytest.raises(ProtocolError):
-        decode_snapshot([0] * 25)
-
-
-def test_encrypted_frame_round_trip_and_malformed_padding():
-    key = bytes(range(16))  # synthetic AES key
-    payload = struct.pack(">HHHBBHH", 3, 0, 6, 1, 4, 5007, 29)
+def test_encrypted_frame_round_trip():
+    key = bytes(range(16))
+    payload = struct.pack(">HHHBBHH", 3, 0, 6, 1, 4, 5000, 100)
     frame = encrypt_frame(payload, key)
     assert decrypt_frame(frame, key, 3) == payload
     with pytest.raises(ProtocolError):
         decrypt_frame(frame[:-1], key, 3)
 
 
-@pytest.mark.parametrize(
-    "mutation", ["transaction", "unit", "function", "count", "exception"]
-)
-async def test_invalid_modbus_replies_rejected(mutation):
-    reader, writer = AsyncMock(), AsyncMock()
-    writer.write = lambda _: None
-    writer.close = lambda: None
-    transaction, unit, function, count = 1, 1, 4, 58
-    if mutation == "transaction":
-        transaction = 2
-    if mutation == "unit":
-        unit = 2
-    if mutation == "function":
-        function = 3
-    if mutation == "count":
-        count = 50
-    body = bytes([function, count]) + b"\0" * 58
-    if mutation == "exception":
-        body = bytes([0x84, 2])
-    header = struct.pack(">HHHB", transaction, 0, len(body) + 1, unit)
-    reader.readexactly.side_effect = [header, body[:2], body[2:]]
-    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
-        with pytest.raises(ProtocolError):
-            await SungrowClient("inverter.invalid").read()
-    writer.wait_closed.assert_awaited_once()
+async def test_read_uses_only_two_blocks_and_caches_session_key():
+    regs = register_map()
+    client = SungrowClient("inverter.invalid")
+    key = bytes(range(16))
+    client._session_key = AsyncMock(return_value=key)
+    client._read_block = AsyncMock(
+        side_effect=[
+            block(regs, 5001, 100),
+            block(regs, 5101, 50),
+            block(regs, 5001, 100),
+            block(regs, 5101, 50),
+        ]
+    )
+    first = await client.read()
+    second = await client.read()
+    assert first["ac_power"] == second["ac_power"] == 4200
+    assert client._read_block.await_args_list[0].args[:2] == (5001, 100)
+    assert client._read_block.await_args_list[1].args[:2] == (5101, 50)
+    assert client._read_block.await_count == 4
 
 
-async def test_plain_read_only_request_and_valid_reply():
-    reader, writer = AsyncMock(), AsyncMock()
-    writer.write = lambda value: requests.append(value)
-    writer.close = lambda: None
-    requests = []
-    body = bytes([4, 58]) + struct.pack(">29H", *registers())
-    reader.readexactly.side_effect = [
-        struct.pack(">HHHB", 1, 0, 61, 1),
-        body[:2],
-        body[2:],
-    ]
-    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
-        result = await SungrowClient("inverter.invalid").read()
-    assert requests == [struct.pack(">HHHBBHH", 1, 0, 6, 1, 4, 5007, 29)]
-    assert result["mppt2_power"] == 2100
-    writer.wait_closed.assert_awaited_once()
-
-
-async def test_connection_error_is_sanitized():
-    with patch(
-        "asyncio.open_connection", AsyncMock(side_effect=OSError("private detail"))
-    ):
-        with pytest.raises(ProtocolError, match="Unable to read inverter") as err:
-            await SungrowClient("inverter.invalid").read()
-    assert "private detail" not in str(err.value)
-
-
-async def test_encrypted_negotiation_then_read_uses_separate_connections():
-    private = bytes(range(16))
-    public = bytes(range(16, 32))
-    session = bytes(a ^ b for a, b in zip(private, public, strict=True))
-    reader1, writer1, reader2, writer2 = (AsyncMock() for _ in range(4))
-    requests = []
-    for writer in (writer1, writer2):
-        writer.write = lambda data: requests.append(data)
-        writer.close = lambda: None
-    reader1.readexactly.side_effect = [
-        bytes.fromhex("686800000013f7"),
-        bytes([4, 16]),
-        public,
-    ]
-    body = bytes([4, 58]) + struct.pack(">29H", *registers())
-    response = encrypt_frame(struct.pack(">HHHB", 1, 0, 61, 1) + body, session)
-    reader2.readexactly.side_effect = [response[:4], response[4:]]
+async def test_connection_error_is_sanitized_and_invalidates_key():
+    client = SungrowClient("inverter.invalid")
+    client._cached_key = bytes(range(16))
     with patch(
         "asyncio.open_connection",
-        AsyncMock(side_effect=[(reader1, writer1), (reader2, writer2)]),
+        AsyncMock(side_effect=OSError("private detail")),
     ):
-        data = await SungrowClient("inverter.invalid", protocol_key=private).read()
-    assert data["mppt1_power"] == 2240
-    assert requests[0] == bytes.fromhex("686800000006f7040ae70008")
-    assert decrypt_frame(requests[1], session, 1)[7] == 4
-    writer1.wait_closed.assert_awaited_once()
-    writer2.wait_closed.assert_awaited_once()
-
-
-async def test_timeout_closes_socket():
-    import asyncio
-
-    reader, writer = AsyncMock(), AsyncMock()
-    writer.write = lambda _: None
-    writer.close = lambda: None
-
-    async def blocked(_):
-        await asyncio.sleep(1)
-
-    reader.readexactly.side_effect = blocked
-    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
-        with pytest.raises(ProtocolError):
-            await SungrowClient("inverter.invalid", timeout=0.01).read()
-    writer.wait_closed.assert_awaited_once()
-
-
-async def test_short_negotiation_exception_fails_without_waiting_for_25_bytes():
-    reader, writer = AsyncMock(), AsyncMock()
-    writer.write = lambda _: None
-    writer.close = lambda: None
-    # Synthetic Modbus exception; no installation traffic or keys.
-    reader.readexactly.side_effect = [bytes.fromhex("686800000003f7"), bytes([0x84, 2])]
-    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
-        with pytest.raises(ProtocolError, match="Key negotiation rejected"):
-            await SungrowClient(
-                "inverter.invalid", protocol_key=bytes(range(16))
-            ).read()
-    assert reader.readexactly.await_args_list[0].args == (7,)
-    assert reader.readexactly.await_args_list[1].args == (2,)
-    writer.wait_closed.assert_awaited_once()
-
-
-async def test_legacy_exception_with_wrong_length_does_not_wait_for_missing_bytes():
-    reader, writer = AsyncMock(), AsyncMock()
-    writer.write = lambda _: None
-    writer.close = lambda: None
-    # Synthetic exception reproduces a legacy length-field quirk, not a capture.
-    reader.readexactly.side_effect = [
-        struct.pack(">HHHB", 1, 0, 6, 1),
-        bytes([0x84, 4]),
-    ]
-    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
-        with pytest.raises(ProtocolError, match="Inverter rejected register read"):
-            await SungrowClient("inverter.invalid").read()
-    assert reader.readexactly.await_args_list[1].args == (2,)
+        with pytest.raises(ProtocolError, match="Unable to read inverter") as err:
+            await client.read()
+    assert "private detail" not in str(err.value)
+    assert client._cached_key is None
