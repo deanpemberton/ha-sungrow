@@ -1,11 +1,12 @@
+# ruff: noqa: E501
 """Sungrow SG5K-D driver adapter."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from . import protocol
 from .driver import DriverError, DriverMetadata, SensorSpec
+from . import protocol
 
 
 SPECS = (
