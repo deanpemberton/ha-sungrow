@@ -148,7 +148,7 @@ class GoodWeDriver:
         self._inverter = None
         self._selected_port: int | None = None
         self._metadata = DriverMetadata("GoodWe", "MS G3", "GoodWe inverter")
-        self._sensor_specs: tuple[SensorSpec, ...] = tuple(COMMON_SPECS.values())
+        self._sensor_specs: tuple[SensorSpec, ...] = ()
 
     @property
     def metadata(self) -> DriverMetadata:
@@ -203,9 +203,11 @@ class GoodWeDriver:
         raise DriverError("Unable to read inverter")
 
     def _build_sensor_specs(self, inverter) -> None:
-        specs = dict(COMMON_SPECS)
+        specs: dict[str, SensorSpec] = {}
         for sensor in inverter.sensors():
-            if sensor.id_ in COMMON_KEYS:
+            common_key = COMMON_KEYS.get(sensor.id_)
+            if common_key:
+                specs[common_key] = COMMON_SPECS[common_key]
                 continue
             spec = _sensor_spec(sensor)
             specs[spec.key] = spec
