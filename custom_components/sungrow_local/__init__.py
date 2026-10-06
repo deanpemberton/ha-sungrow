@@ -7,6 +7,14 @@ from .coordinator import InverterCoordinator
 PLATFORMS = [Platform.SENSOR]
 
 
+async def async_migrate_entry(hass, entry):
+    """Migrate pre-vendor entries without changing entity identities."""
+    if entry.version == 1:
+        data = {**entry.data, "vendor": "sungrow"}
+        hass.config_entries.async_update_entry(entry, data=data, version=2)
+    return True
+
+
 async def async_setup_entry(hass, entry):
     """Initialize one local inverter polling coordinator."""
     coordinator = InverterCoordinator(hass, entry)
