@@ -124,3 +124,43 @@ async def test_selected_transport_is_cached_between_polls():
 
     connect.assert_awaited_once()
     assert inverter.read_runtime_data.await_count == 2
+
+
+async def test_no_meter_hides_meter_entities():
+    inverter = fake_inverter()
+    base_sensors = inverter.sensors()
+    inverter.sensors = lambda: tuple(
+        item
+        for item in base_sensors
+        if not item.id_.startswith("meter_")
+        and item.id_ != "house_consumption"
+    )
+    inverter.read_runtime_data = AsyncMock(
+        return_value={
+            "vpv1": 310.1,
+            "ipv1": 5.1,
+            "ppv1": 1582,
+            "vpv2": 320.2,
+            "ipv2": 6.2,
+            "ppv2": 1985,
+            "vpv3": 330.3,
+            "ipv3": 7.3,
+            "ppv3": 2411,
+            "total_input_power": 5950,
+            "total_inverter_power": 5700,
+        }
+    )
+
+    with patch(
+        "custom_components.sungrow_local.goodwe_driver.goodwe.connect",
+        AsyncMock(return_value=inverter),
+    ):
+        driver = GoodWeDriver("inverter.invalid", transport="udp")
+        await driver.read()
+
+    keys = {spec.key for spec in driver.sensor_specs}
+    assert "mppt3_power" in keys
+    assert "grid_power" not in keys
+    assert "house_power" not in keys
+    assert "total_export_energy" not in keys
+    assert "total_import_energy" not in keys
