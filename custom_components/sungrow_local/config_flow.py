@@ -73,7 +73,7 @@ def goodwe_schema(defaults=None):
 
 def _clean_host(data):
     host = data["host"].strip().lower()
-    if not host or any(char in host for char in "/@?# \"):
+    if not host or any(char in host for char in "/@?# \\\\"):
         return None
     data["host"] = host
     data["mqtt_topic"] = data.get("mqtt_topic", DEFAULT_MQTT_TOPIC).strip()
