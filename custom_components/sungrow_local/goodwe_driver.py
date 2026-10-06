@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """GoodWe MS G3 read-only local driver.
 
 Uses the mature upstream goodwe library used by Home Assistant's native
