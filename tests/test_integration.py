@@ -2,17 +2,15 @@
 
 from unittest.mock import AsyncMock, patch
 
-from homeassistant.const import CONF_HOST
-from homeassistant.data_entry_flow import FlowResultType
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-
 from custom_components.sungrow_local.const import (
     DEFAULT_INTERVAL,
     DEFAULT_MQTT_TOPIC,
     DOMAIN,
 )
 from custom_components.sungrow_local.protocol import ProtocolError
-
+from homeassistant.const import CONF_HOST
+from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 SNAPSHOT = {
     "nominal_active_power": 5000,
@@ -106,8 +104,14 @@ async def test_setup_exposes_expanded_sensors(hass):
     entry.add_to_hass(hass)
     read = AsyncMock(return_value=SNAPSHOT)
     with (
-        patch("custom_components.sungrow_local.coordinator.importlib.reload", lambda module: module),
-        patch("custom_components.sungrow_local.protocol.SungrowClient.read", read),
+        patch(
+            "custom_components.sungrow_local.coordinator.importlib.reload",
+            lambda module: module,
+        ),
+        patch(
+            "custom_components.sungrow_local.protocol.SungrowClient.read",
+            read,
+        ),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -125,7 +129,12 @@ async def test_setup_exposes_expanded_sensors(hass):
     assert mppt.attributes["unit_of_measurement"] == "W"
     assert total_energy.state == "1234.5"
     assert total_energy.attributes["unit_of_measurement"] == "kWh"
-    assert len([state for state in sensor_states if state.entity_id.startswith("sensor.sungrow")]) >= 20
+    sungrow_states = [
+        state
+        for state in sensor_states
+        if state.entity_id.startswith("sensor.sungrow")
+    ]
+    assert len(sungrow_states) >= 20
 
 
 async def test_options_enforce_conservative_interval_and_mqtt_topic(hass):
