@@ -1,18 +1,13 @@
-# Sungrow Local
+# Local Solar Inverter
 
-A native, read-only Home Assistant integration for Sungrow SG5K-D local telemetry.
-It talks directly to the inverter/dongle on the LAN and can expose the same
-snapshot as Home Assistant entities and retained MQTT JSON.
+A native, read-only Home Assistant integration for local solar inverter telemetry.\nIt currently supports Sungrow SG5K-D hardware and includes a pre-hardware GoodWe\nMS G3 driver targeting GW8500-MS-30. One shared poll snapshot feeds both Home\nAssistant entities and retained MQTT JSON.
 
-## Status
-
-Live hardware validated against the SG5K-D during development. The transport
+## Status\n\nLive hardware validated against the SG5K-D during development. GoodWe MS G3\nsupport is implemented against the same `goodwe==0.4.10` protocol library pinned\nby current Home Assistant Core and awaits final validation on the purchased\nGW8500-MS-30.\n\nThe GoodWe driver supports local UDP/8899 and Modbus TCP/502, auto-detects the\nworking path once during setup, caches it, and exposes all runtime sensors reported\nby the upstream MS-family driver, including the third MPPT and optional meter data.\n\n The transport
 uses Sungrow's encrypted Modbus envelope and the vendor default transport key
 used by the historical `SungrowModbusTcpClient` library. That key is a protocol
 constant, not an installation credential.
 
-The integration remains read-only: it issues input-register reads only and
-provides no inverter control services.
+The integration remains read-only. No inverter control or GoodWe settings writes\nare exposed.
 
 ## Polling and inverter safety
 
@@ -101,3 +96,21 @@ installation credentials.
 ## License
 
 MIT.
+
+## GoodWe MS G3 commissioning
+
+For GW8500-MS-30 the integration expects three MPPTs and attempts local connectivity
+through the mature GoodWe protocol stack. Choose **Auto** first; setup tries UDP 8899
+then Modbus TCP 502 and remembers the successful path. If Modbus TCP is used, it must
+be enabled on the installed communication dongle/firmware.
+
+Arrival-day validation is intentionally small:
+
+1. Add a second Local Solar Inverter entry and choose **GoodWe**.
+2. Enter the inverter/dongle LAN address and leave transport on **Auto**.
+3. Confirm model detection and MPPT 1/2/3 voltage, current and power against SolarGo.
+4. Confirm total DC power, AC output power, temperature, daily/total generation and
+   optional smart-meter import/export/house-load values.
+5. Identify which physical roof string corresponds to MPPT 1/2/3 and label dashboards.
+6. If connectivity differs from expected, capture sanitized diagnostics and adjust only
+   the model/transport quirk rather than changing the shared HA layer.
