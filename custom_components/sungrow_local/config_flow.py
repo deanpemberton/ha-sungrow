@@ -47,6 +47,8 @@ def sungrow_schema(defaults=None):
 
 def goodwe_schema(defaults=None):
     defaults = defaults or {}
+    if "mqtt_topic" not in defaults:
+        defaults = {**defaults, "mqtt_topic": "inverter/goodwe/stats"}
     fields = {
         vol.Required("host", default=defaults.get("host", "")): str,
         vol.Required(
