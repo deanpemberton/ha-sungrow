@@ -34,6 +34,10 @@ COMMON_KEYS = {
     "ppv3": "mppt3_power",
     "total_input_power": "dc_power",
     "total_inverter_power": "ac_power",
+    "apparent_power": "apparent_power",
+    "reactive_power": "reactive_power",
+    "power_factor": "power_factor",
+    "warning_code": "warning_code",
     "vgrid1": "phase_a_voltage",
     "igrid1": "phase_a_current",
     "fgrid1": "frequency",
@@ -44,6 +48,8 @@ COMMON_KEYS = {
     "work_mode": "device_status",
     "error_codes": "fault_code",
     "meter_active_power": "grid_power",
+    "meter_e_total_exp": "total_export_energy",
+    "meter_e_total_imp": "total_import_energy",
     "house_consumption": "house_power",
 }
 
@@ -60,6 +66,10 @@ COMMON_SPECS = {
     "mppt3_power": SensorSpec("mppt3_power", "MPPT 3 power", "W", "power", precision=0),
     "dc_power": SensorSpec("dc_power", "Total DC power", "W", "power", precision=0),
     "ac_power": SensorSpec("ac_power", "AC output power", "W", "power", precision=0),
+    "apparent_power": SensorSpec("apparent_power", "Apparent power", "VA", precision=0),
+    "reactive_power": SensorSpec("reactive_power", "Reactive power", "var", precision=0),
+    "power_factor": SensorSpec("power_factor", "Power factor", precision=3),
+    "warning_code": SensorSpec("warning_code", "Warning code", state_class=None, precision=0),
     "phase_a_voltage": SensorSpec("phase_a_voltage", "Grid voltage", "V", "voltage", precision=1),
     "phase_a_current": SensorSpec("phase_a_current", "Grid current", "A", "current", precision=1),
     "frequency": SensorSpec("frequency", "Grid frequency", "Hz", "frequency", precision=2),
@@ -70,6 +80,8 @@ COMMON_SPECS = {
     "device_status": SensorSpec("device_status", "Device status", state_class=None, precision=0),
     "fault_code": SensorSpec("fault_code", "Fault code", state_class=None, precision=0),
     "grid_power": SensorSpec("grid_power", "Meter active power", "W", "power", precision=0),
+    "total_export_energy": SensorSpec("total_export_energy", "Meter total export energy", "kWh", "energy", "total_increasing", 2),
+    "total_import_energy": SensorSpec("total_import_energy", "Meter total import energy", "kWh", "energy", "total_increasing", 2),
     "house_power": SensorSpec("house_power", "House consumption", "W", "power", precision=0),
 }
 # fmt: on
