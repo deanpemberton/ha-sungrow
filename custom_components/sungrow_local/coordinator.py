@@ -28,7 +28,7 @@ class SungrowCoordinator(DataUpdateCoordinator):
             bytes.fromhex(key) if key else None,
         )
         self._mqtt_topic = config.get("mqtt_topic", DEFAULT_MQTT_TOPIC).strip()
-        prefix = self._mqtt_topic.rsplit("/", 1)[0] if "/" in self._mqtt_topic else self._mqtt_topic
+        prefix = (\n            self._mqtt_topic.rsplit("/", 1)[0]\n            if "/" in self._mqtt_topic\n            else self._mqtt_topic\n        )
         self._mqtt_status_topic = f"{prefix}/status"
         super().__init__(
             hass,
