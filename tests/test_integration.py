@@ -2,15 +2,16 @@
 
 from unittest.mock import AsyncMock, patch
 
+from homeassistant.const import CONF_HOST
+from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from custom_components.sungrow_local.const import (
     DEFAULT_INTERVAL,
     DEFAULT_MQTT_TOPIC,
     DOMAIN,
 )
 from custom_components.sungrow_local.protocol import ProtocolError
-from homeassistant.const import CONF_HOST
-from homeassistant.data_entry_flow import FlowResultType
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 SNAPSHOT = {
     "nominal_active_power": 5000,
