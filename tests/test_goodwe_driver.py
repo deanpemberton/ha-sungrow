@@ -89,9 +89,7 @@ async def test_ms_g3_exposes_three_mppts_and_meter_data():
     assert data["goodwe_derating_mode_label"] == "None"
     assert driver.metadata.model == "GW8500-MS-30"
     assert any(spec.key == "mppt3_voltage" for spec in driver.sensor_specs)
-    assert any(
-        spec.key == "total_export_energy" for spec in driver.sensor_specs
-    )
+    assert any(spec.key == "total_export_energy" for spec in driver.sensor_specs)
     connect.assert_awaited_once()
 
 
