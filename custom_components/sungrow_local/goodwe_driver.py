@@ -47,6 +47,7 @@ COMMON_KEYS = {
     "house_consumption": "house_power",
 }
 
+# fmt: off
 COMMON_SPECS = {
     "mppt1_voltage": SensorSpec("mppt1_voltage", "MPPT 1 voltage", "V", "voltage", precision=1),
     "mppt1_current": SensorSpec("mppt1_current", "MPPT 1 current", "A", "current", precision=1),
@@ -71,6 +72,7 @@ COMMON_SPECS = {
     "grid_power": SensorSpec("grid_power", "Meter active power", "W", "power", precision=0),
     "house_power": SensorSpec("house_power", "House consumption", "W", "power", precision=0),
 }
+# fmt: on
 
 
 def _sensor_spec(sensor) -> SensorSpec:
