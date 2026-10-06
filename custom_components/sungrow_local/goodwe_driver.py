@@ -201,6 +201,7 @@ class GoodWeDriver:
         try:
             inverter = await self._connect()
             raw = await inverter.read_runtime_data()
+            self._build_sensor_specs(inverter)
         except InverterError:
             raise DriverError("Unable to read inverter") from None
 
