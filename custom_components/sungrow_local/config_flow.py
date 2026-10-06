@@ -9,7 +9,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from . import protocol
-from .const import DEFAULT_INTERVAL, DOMAIN
+from .const import DEFAULT_INTERVAL, DEFAULT_MQTT_TOPIC, DOMAIN, MIN_INTERVAL
 
 
 def schema(defaults=None):
@@ -25,7 +25,10 @@ def schema(defaults=None):
             ),
             vol.Required(
                 "scan_interval", default=defaults.get("scan_interval", DEFAULT_INTERVAL)
-            ): vol.All(vol.Coerce(int), vol.Range(min=10, max=3600)),
+            ): vol.All(vol.Coerce(int), vol.Range(min=MIN_INTERVAL, max=3600)),
+            vol.Optional(
+                "mqtt_topic", default=defaults.get("mqtt_topic", DEFAULT_MQTT_TOPIC)
+            ): str,
             vol.Optional(
                 "protocol_key", default=defaults.get("protocol_key", "")
             ): selector.TextSelector(
@@ -125,6 +128,10 @@ class SungrowOptionsFlow(config_entries.OptionsFlow):
         current = self.config_entry.options.get(
             "scan_interval",
             self.config_entry.data.get("scan_interval", DEFAULT_INTERVAL),
+        )
+        mqtt_topic = self.config_entry.options.get(
+            "mqtt_topic",
+            self.config_entry.data.get("mqtt_topic", DEFAULT_MQTT_TOPIC),
         )
         return self.async_show_form(
             step_id="init",
