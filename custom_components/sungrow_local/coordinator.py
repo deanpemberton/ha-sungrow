@@ -59,8 +59,7 @@ class SungrowCoordinator(DataUpdateCoordinator):
                 {
                     "topic": self._mqtt_status_topic,
                     "payload": "online" if available else "offline",
-                    "retain": True,
-                    "qos": 0,
+                    "publish_options": {"retain": True, "qos": 0},
                 },
                 blocking=False,
             )
@@ -76,8 +75,7 @@ class SungrowCoordinator(DataUpdateCoordinator):
                         "payload": json.dumps(
                             payload, separators=(",", ":")
                         ),
-                        "retain": True,
-                        "qos": 0,
+                        "publish_options": {"retain": True, "qos": 0},
                     },
                     blocking=False,
                 )
