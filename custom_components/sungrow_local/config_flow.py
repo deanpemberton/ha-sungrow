@@ -122,8 +122,9 @@ class SungrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required("vendor", default="sungrow"):
-                        selector.SelectSelector(
+                    vol.Required(
+                        "vendor", default="sungrow"
+                    ): selector.SelectSelector(
                             selector.SelectSelectorConfig(
                                 options=[
                                     {"value": key, "label": value}
@@ -152,9 +153,7 @@ class SungrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_sungrow(self, user_input=None):
-        return await self._finish_vendor(
-            "sungrow", user_input, sungrow_schema
-        )
+        return await self._finish_vendor("sungrow", user_input, sungrow_schema)
 
     async def async_step_goodwe(self, user_input=None):
         return await self._finish_vendor("goodwe", user_input, goodwe_schema)
