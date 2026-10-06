@@ -9,6 +9,7 @@ from .driver import DriverError, DriverMetadata, SensorSpec
 from . import protocol
 
 
+# fmt: off
 SPECS = (
     SensorSpec("nominal_active_power", "Nominal active power", "W", "power", precision=0),
     SensorSpec("daily_energy", "Daily energy", "kWh", "energy", "total_increasing", 1),
@@ -49,6 +50,7 @@ SPECS = (
     SensorSpec("negative_voltage_to_ground", "Negative voltage to ground", "V", "voltage", precision=1),
     SensorSpec("frequency_high_resolution", "Grid frequency high resolution", "Hz", "frequency", precision=2),
 )
+# fmt: on
 
 
 class SungrowDriver:
