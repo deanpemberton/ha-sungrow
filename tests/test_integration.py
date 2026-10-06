@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.sungrow_local import async_migrate_entry
 from custom_components.sungrow_local.const import DOMAIN
 from custom_components.sungrow_local.driver import (
     DriverError,
@@ -166,3 +167,18 @@ async def test_invalid_sungrow_protocol_key_does_not_connect(hass):
         )
     assert result["errors"] == {"protocol_key": "invalid_key"}
     create.assert_not_called()
+
+
+async def test_existing_sungrow_entry_migrates_without_identity_change(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="existing-sungrow",
+        version=1,
+        data={"host": "inverter.invalid", "port": 502, "unit": 1},
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry)
+    assert entry.version == 2
+    assert entry.data["vendor"] == "sungrow"
+    assert entry.unique_id == "existing-sungrow"
