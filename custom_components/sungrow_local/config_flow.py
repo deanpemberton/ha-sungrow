@@ -1,6 +1,5 @@
 """UI-only setup; device configuration remains in HA storage."""
 
-import importlib
 import uuid
 
 import voluptuous as vol
@@ -24,10 +23,12 @@ def schema(defaults=None):
                 vol.Coerce(int), vol.Range(min=1, max=247)
             ),
             vol.Required(
-                "scan_interval", default=defaults.get("scan_interval", DEFAULT_INTERVAL)
+                "scan_interval",
+                default=defaults.get("scan_interval", DEFAULT_INTERVAL),
             ): vol.All(vol.Coerce(int), vol.Range(min=MIN_INTERVAL, max=3600)),
             vol.Optional(
-                "mqtt_topic", default=defaults.get("mqtt_topic", DEFAULT_MQTT_TOPIC)
+                "mqtt_topic",
+                default=defaults.get("mqtt_topic", DEFAULT_MQTT_TOPIC),
             ): str,
             vol.Optional(
                 "protocol_key", default=defaults.get("protocol_key", "")
@@ -39,14 +40,7 @@ def schema(defaults=None):
 
 
 async def validate(data):
-    """Validate one setup attempt.
-
-    During active hardware development the protocol module is reloaded here so
-    transport changes can be tested without restarting Home Assistant Core.
-    Remove this development hook before release.
-    """
-    current_protocol = importlib.reload(protocol)
-
+    """Validate reachability with one read-only snapshot."""
     host = data["host"].strip().lower()
     if not host or any(char in host for char in "/@?# \\"):
         return {"host": "invalid_host"}
@@ -58,17 +52,21 @@ async def validate(data):
     except ValueError:
         return {"protocol_key": "invalid_key"}
     try:
-        await current_protocol.SungrowClient(
-            host, data.get("port", 502), data.get("unit", 1), key_bytes
+        await protocol.SungrowClient(
+            host,
+            data.get("port", 502),
+            data.get("unit", 1),
+            key_bytes,
         ).read()
-    except current_protocol.NegotiationRejected:
+    except protocol.NegotiationRejected:
         return {"base": "negotiation_rejected"}
-    except current_protocol.ReadRejected:
+    except protocol.ReadRejected:
         return {"base": "read_rejected"}
-    except current_protocol.ProtocolError:
+    except protocol.ProtocolError:
         return {"base": "cannot_connect"}
     data["host"] = host
     data["protocol_key"] = key
+    data["mqtt_topic"] = data.get("mqtt_topic", DEFAULT_MQTT_TOPIC).strip()
     return {}
 
 
@@ -94,7 +92,9 @@ class SungrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors = await validate(user_input)
             if not errors:
                 await self.async_set_unique_id(uuid.uuid4().hex)
-                return self.async_create_entry(title="Sungrow Local", data=user_input)
+                return self.async_create_entry(
+                    title="Sungrow Local", data=user_input
+                )
         return self.async_show_form(
             step_id="user", data_schema=schema(user_input), errors=errors
         )
@@ -115,12 +115,14 @@ class SungrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     entry, data_updates=user_input
                 )
         return self.async_show_form(
-            step_id="reconfigure", data_schema=schema(entry.data), errors=errors
+            step_id="reconfigure",
+            data_schema=schema(entry.data | entry.options),
+            errors=errors,
         )
 
 
 class SungrowOptionsFlow(config_entries.OptionsFlow):
-    """Change polling cadence without changing sensor identities."""
+    """Change polling cadence and MQTT publication without changing sensors."""
 
     async def async_step_init(self, user_input=None):
         if user_input is not None:
@@ -138,8 +140,10 @@ class SungrowOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Required("scan_interval", default=current): vol.All(
-                        vol.Coerce(int), vol.Range(min=10, max=3600)
+                        vol.Coerce(int),
+                        vol.Range(min=MIN_INTERVAL, max=3600),
                     ),
+                    vol.Optional("mqtt_topic", default=mqtt_topic): str,
                 }
             ),
         )
