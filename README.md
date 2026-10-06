@@ -1,86 +1,103 @@
 # Sungrow Local
 
-A native, read-only Home Assistant custom integration for SG5K-D local telemetry.
-Runs inside Home Assistant; no MQTT broker, external container or cloud account.
+A native, read-only Home Assistant integration for Sungrow SG5K-D local telemetry.
+It talks directly to the inverter/dongle on the LAN and can expose the same
+snapshot as Home Assistant entities and retained MQTT JSON.
 
 ## Status
 
-Experimental: synthetic protocol tests and Home Assistant lifecycle tests pass.
-**No live SG5K-D / WiFi V31 hardware has been validated yet.** Do not replace a
-working production telemetry source until live readings have been compared.
+Live hardware validated against the SG5K-D during development. The transport
+uses Sungrow's encrypted Modbus envelope and the vendor default transport key
+used by the historical `SungrowModbusTcpClient` library. That key is a protocol
+constant, not an installation credential.
 
-Supports plain Modbus TCP and the legacy encrypted Sungrow TCP envelope. Some
-older dongles require a web transport instead; that transport is not implemented
-in this version. An open TCP port alone does not establish compatibility.
+The integration remains read-only: it issues input-register reads only and
+provides no inverter control services.
 
-## Sensors
+## Polling and inverter safety
 
-- MPPT 1 and MPPT 2 voltage (V), current (A), and calculated DC power (W).
-- Total DC power (W), inverter AC output power (W), temperature (°C), frequency (Hz).
+The SG5K-D can become unstable when polled too aggressively, so polling is
+deliberately conservative:
 
-MPPT power is voltage × current, not a separate power meter. DC string power
-will differ from AC output because of conversion losses and inverter clipping.
-The SG5K-D mapping uses input registers 5008–5036, with zero-based Modbus
-addresses 5007–5035 and low-word-first 32-bit power values. This map is based on
-the existing Solariot SG5K-D map; exact hardware/firmware behavior needs verification.
-Invalid unsigned readings produce unknown values, never fabricated zeros.
-Connection failures make sensors unavailable, with automatic recovery on the next poll.
-Generation energy counters are deferred until their units and width are verified;
-instantaneous power sensors cannot be used as energy counters directly.
+- Default polling: **60 seconds**.
+- Minimum configurable polling: **30 seconds**.
+- One scheduled poll produces one shared snapshot for HA and MQTT.
+- Two encrypted FC04 block reads are used per poll, matching the historical
+  Solariot SG5K-D scan ranges.
+- Session-key negotiation is cached for the day instead of repeated every poll.
+- Failed reads are not immediately retried in a tight loop; recovery occurs on
+  the next scheduled coordinator update.
+
+## Telemetry
+
+The integration exposes the historical Solariot SG5K-D measurements plus useful
+diagnostics available in the same register ranges:
+
+- Daily and total generation energy.
+- Total and daily run time.
+- Inverter temperature.
+- MPPT 1 and MPPT 2 voltage, current, and calculated power.
+- Total DC power, AC active power, apparent power, and reactive power.
+- Phase voltage/current values.
+- Grid frequency and power factor.
+- Device status and fault code.
+- Grid import/export power and house/meter power.
+- Daily imported energy.
+- Daily and total consumption.
+- Nominal active/reactive power.
+- Negative voltage-to-ground diagnostic.
+
+MPPT power is calculated as voltage × current from the same snapshot.
+
+## MQTT
+
+If Home Assistant's MQTT integration is loaded, each successful inverter poll
+publishes the same snapshot to MQTT. There is no second inverter scrape.
+
+Default topics:
+
+- State: `inverter/stats`
+- Availability: `inverter/status`
+
+The retained state JSON contains normalized field names plus legacy Solariot
+aliases such as `daily_power_yield`, `total_power_yield`, `internal_temp`,
+`pv1_voltage`, `pv1_current`, `total_pv_power`, `total_active_power`,
+`export_power`, and `power_meter`.
+
+Each payload also includes `_source` and `_last_update` so consumers can detect
+fresh data. The availability topic is retained as `online` / `offline`.
+
+The MQTT state topic and poll interval can be changed in integration options.
 
 ## Installation
 
-See the [step-by-step installation and setup guide](docs/INSTALL.md), including
-manual installation, upgrades, troubleshooting and removal.
+See [docs/INSTALL.md](docs/INSTALL.md) for the full installation workflow.
 
-### Quick start for development
-
-1. Check out the feature branch or the reviewed develop branch.
-2. Copy `custom_components/sungrow_local` into the HA configuration directory's
-   `custom_components` directory. Restart Home Assistant.
-3. Settings → Devices & services → Add integration → **Sungrow Local**.
-4. Enter the device address locally, TCP port (normally 502), and inverter unit
-   ID (normally 1). Leave Protocol key empty for plain Modbus. For a dongle that
-   requires encryption, enter its 16-byte protocol key as 32 hexadecimal characters.
-   This project intentionally contains no embedded protocol key.
-5. Default polling is 30 seconds. Change it under integration options (10–3600 seconds).
-   Use Reconfigure to change the address or transport key without replacing sensor IDs.
-
-Home Assistant must be able to reach the device on its local network. Encryption
-negotiation uses a separate connection followed by one input-register read per poll.
-Requests are bounded by a 10-second timeout. This integration issues no inverter
-control or register-write commands.
-
-`hacs.json` is included for eventual HACS custom-repository installation. The first
-release still needs hardware validation; no release tag is provided yet. Install
-manually from the feature branch for testing rather than expecting a stable release.
-
-## Privacy
-
-Device addresses, keys and unit settings stay in local HA configuration storage.
-HA backups may include this configuration; treat them as private. Sensor IDs use
-random installation IDs, not addresses or serials. Errors contain no device details.
-Never upload configuration storage, credentials, keys, real addresses, identifiers
-or unsanitized packet captures to the public repository. All tests use synthetic data.
+For development on Home Assistant OS, keep the repository on the shared config
+filesystem and use a relative symlink for `custom_components/sungrow_local` so
+the terminal App and Home Assistant Core resolve the same files.
 
 ## Development
 
-Python 3.13; tested against Home Assistant 2026.2.3 via the pinned custom integration
-pytest plugin. Newer HA versions require a further compatibility check.
+Python 3.13; CI runs Ruff lint/format checks and Home Assistant integration tests.
 
 ```sh
 python -m pip install -r requirements-dev.txt
-pytest -q
 ruff check .
 ruff format --check .
+pytest -q
 ```
 
 Use issue-linked feature/fix branches from `develop` and PRs into `develop`.
-Use release branches for `main`, merging back into `develop`. Test first, implement,
-then refactor. See `AGENTS.md` for repository rules. CI runs tests and formatting checks.
+See `AGENTS.md` for repository rules.
+
+## Privacy
+
+Installation addresses and optional key overrides remain in Home Assistant's
+local config-entry storage. The repository contains only the public Sungrow
+protocol transport constant required by the historical encrypted client, not
+installation credentials.
 
 ## License
 
-MIT. This is an independent transport implementation informed by the publicly
-documented Solariot register map and Sungrow-Modbus wire protocol behavior.
-No third-party client implementation or embedded protocol secret is vendored.
+MIT.
