@@ -8,6 +8,9 @@ retaining every additional runtime sensor exposed by the library.
 
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import logging
 from typing import Any
 
@@ -228,8 +231,15 @@ class GoodWeDriver:
         # inverter-reported total input power as the normalized DC value.
         if "ppv" in raw:
             snapshot["goodwe_calculated_pv_power"] = raw["ppv"]
-        if snapshot.get("dc_power") is None:
-            snapshot["dc_power"] = raw.get("ppv")
+        # MS G3 can report total_input_power=0 while individual PV inputs
+        # and the library-calculated ppv are nonzero.
+        if snapshot.get("dc_power") in (None, 0) and raw.get("ppv") is not None:
+            snapshot["dc_power"] = raw["ppv"]
+
+        # Home Assistant timestamp entities require timezone-aware values.
+        timestamp = snapshot.get("goodwe_timestamp")
+        if isinstance(timestamp, datetime) and timestamp.tzinfo is None:
+            snapshot["goodwe_timestamp"] = timestamp.replace(tzinfo=ZoneInfo("Pacific/Auckland"))
 
         return snapshot
 
