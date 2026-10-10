@@ -68,12 +68,13 @@ class InverterCoordinator(DataUpdateCoordinator):
                         "payload": json.dumps(
                             payload, separators=(",", ":"), default=str
                         ),
-                        "publish_options": {"retain": True, "qos": 0},
+                        "retain": True,
+                        "qos": 0,
                     },
                     blocking=False,
                 )
         except Exception:
-            _LOGGER.warning("Unable to publish inverter telemetry to MQTT")
+            _LOGGER.exception("Unable to publish inverter telemetry to MQTT")
 
     async def _async_update_data(self):
         try:
