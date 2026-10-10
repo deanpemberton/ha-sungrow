@@ -1,35 +1,27 @@
 """Coordinated polling and MQTT publication from one inverter snapshot."""
 
-import importlib
 import json
 import logging
 from datetime import UTC, datetime, timedelta
 
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
-from . import protocol
 from .const import DEFAULT_INTERVAL, DEFAULT_MQTT_TOPIC, DOMAIN
+from .driver import DriverError, create_driver
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class SungrowCoordinator(DataUpdateCoordinator):
+class InverterCoordinator(DataUpdateCoordinator):
     """Update all consumers from one rate-conscious inverter read."""
 
     def __init__(self, hass, entry):
         config = entry.data | entry.options
-        key = config.get("protocol_key", "")
-        current_protocol = importlib.reload(protocol)
-        self.protocol = current_protocol
-        self.client = current_protocol.SungrowClient(
-            config["host"],
-            config.get("port", 502),
-            config.get("unit", 1),
-            bytes.fromhex(key) if key else None,
-        )
-        self._mqtt_topic = config.get(
-            "mqtt_topic", DEFAULT_MQTT_TOPIC
-        ).strip()
+        self.driver = create_driver(config)
+        self._mqtt_topic = config.get("mqtt_topic", DEFAULT_MQTT_TOPIC).strip()
         if "/" in self._mqtt_topic:
             prefix = self._mqtt_topic.rsplit("/", 1)[0]
         else:
@@ -59,12 +51,13 @@ class SungrowCoordinator(DataUpdateCoordinator):
                 {
                     "topic": self._mqtt_status_topic,
                     "payload": "online" if available else "offline",
-                    "publish_options": {"retain": True, "qos": 0},
+                    "retain": True,
+                    "qos": 0,
                 },
                 blocking=False,
             )
             if available:
-                payload = self.protocol.mqtt_payload(snapshot)
+                payload = self.driver.mqtt_payload(snapshot)
                 payload["_source"] = DOMAIN
                 payload["_last_update"] = datetime.now(UTC).isoformat()
                 await self.hass.services.async_call(
@@ -73,19 +66,20 @@ class SungrowCoordinator(DataUpdateCoordinator):
                     {
                         "topic": self._mqtt_topic,
                         "payload": json.dumps(
-                            payload, separators=(",", ":")
+                            payload, separators=(",", ":"), default=str
                         ),
-                        "publish_options": {"retain": True, "qos": 0},
+                        "retain": True,
+                        "qos": 0,
                     },
                     blocking=False,
                 )
         except Exception:
-            _LOGGER.warning("Unable to publish Sungrow telemetry to MQTT")
+            _LOGGER.exception("Unable to publish inverter telemetry to MQTT")
 
     async def _async_update_data(self):
         try:
-            snapshot = await self.client.read()
-        except self.protocol.ProtocolError:
+            snapshot = await self.driver.read()
+        except DriverError:
             await self._async_publish_mqtt({}, False)
             raise UpdateFailed("Unable to read inverter") from None
         await self._async_publish_mqtt(snapshot, True)

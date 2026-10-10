@@ -1,36 +1,54 @@
 {
-  "title": "Sungrow Local",
+  "title": "Local Solar Inverter",
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Sungrow locally",
-        "description": "Read-only SG5K-D telemetry. Leave protocol key empty for plain Modbus TCP. Encrypted legacy dongles require a key configured locally; never post it in an issue.",
+        "title": "Add local solar inverter",
+        "description": "Choose the inverter vendor. The integration is read-only and polls locally.",
+        "data": {
+          "vendor": "Vendor"
+        }
+      },
+      "sungrow": {
+        "title": "Connect to Sungrow",
+        "description": "Local read-only SG5K-D telemetry over the Sungrow encrypted Modbus transport.",
         "data": {
           "host": "Inverter hostname or IP address",
           "port": "TCP port",
           "unit": "Inverter unit ID",
           "scan_interval": "Polling interval (seconds)",
-          "protocol_key": "Protocol key (optional, 32 hexadecimal characters)"
+          "mqtt_topic": "MQTT state topic",
+          "protocol_key": "Protocol key override (normally leave empty)"
+        }
+      },
+      "goodwe": {
+        "title": "Connect to GoodWe",
+        "description": "Local read-only MS/MS G3 telemetry. Auto transport tries SolarGo/UDP 8899 then Modbus TCP 502 once during setup and caches the working path.",
+        "data": {
+          "host": "Inverter hostname or IP address",
+          "transport": "Local transport",
+          "port": "Port override (0 = automatic)",
+          "scan_interval": "Polling interval (seconds)",
+          "mqtt_topic": "MQTT state topic"
         }
       },
       "reconfigure": {
-        "title": "Connect to Sungrow locally",
-        "description": "Read-only SG5K-D telemetry. Leave protocol key empty for plain Modbus TCP. Encrypted legacy dongles require a key configured locally; never post it in an issue.",
+        "title": "Reconfigure local inverter",
         "data": {
           "host": "Inverter hostname or IP address",
-          "port": "TCP port",
+          "port": "Port",
           "unit": "Inverter unit ID",
+          "transport": "Local transport",
           "scan_interval": "Polling interval (seconds)",
-          "protocol_key": "Protocol key (optional, 32 hexadecimal characters)"
+          "mqtt_topic": "MQTT state topic",
+          "protocol_key": "Protocol key override"
         }
       }
     },
     "error": {
-      "cannot_connect": "Unable to read the inverter. Check network access, transport key, port and unit ID.",
+      "cannot_connect": "Unable to read the inverter. Check local network reachability and the selected transport.",
       "invalid_host": "Enter a hostname or IP address without a URL or path.",
-      "invalid_key": "Enter a 16-byte hexadecimal key or leave this empty.",
-      "negotiation_rejected": "The dongle rejected key negotiation. Verify its transport support and unit configuration. Do not share the protocol key.",
-      "read_rejected": "The device responded but rejected the register read. Verify the inverter unit ID and transport support; the connection itself succeeded."
+      "invalid_key": "Enter a 16-byte hexadecimal key or leave this empty."
     },
     "abort": {
       "already_configured": "This inverter is already configured.",
@@ -40,9 +58,10 @@
   "options": {
     "step": {
       "init": {
-        "title": "Polling",
+        "title": "Polling and MQTT",
         "data": {
-          "scan_interval": "Polling interval (seconds)"
+          "scan_interval": "Polling interval (seconds)",
+          "mqtt_topic": "MQTT state topic"
         }
       }
     }

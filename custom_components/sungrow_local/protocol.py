@@ -105,8 +105,6 @@ def decode_registers(registers: dict[int, int]) -> dict[str, float | int | None]
     pv2_voltage = u16(5013, 10)
     pv2_current = u16(5014, 10)
 
-
-
     data: dict[str, float | int | None] = {
         "nominal_active_power": None if u16(5001) is None else u16(5001) * 100,
         "daily_energy": u16(5003, 10),
