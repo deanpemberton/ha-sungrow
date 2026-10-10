@@ -183,10 +183,8 @@ class GoodWeDriver:
                 inverter = await goodwe.connect(
                     self._host,
                     port=port,
-                    family="MS",
                     timeout=self._timeout,
                     retries=1,
-                    do_discover=False,
                 )
                 self._inverter = inverter
                 self._selected_port = port
