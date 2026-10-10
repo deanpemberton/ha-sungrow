@@ -51,7 +51,8 @@ class InverterCoordinator(DataUpdateCoordinator):
                 {
                     "topic": self._mqtt_status_topic,
                     "payload": "online" if available else "offline",
-                    "publish_options": {"retain": True, "qos": 0},
+                    "retain": True,
+                    "qos": 0,
                 },
                 blocking=False,
             )
