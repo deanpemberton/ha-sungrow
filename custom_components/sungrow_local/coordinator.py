@@ -81,7 +81,10 @@ class InverterCoordinator(DataUpdateCoordinator):
             # Throttle repeated failures while preserving the error type.
             now = monotonic()
             if now - self._mqtt_last_warning >= 300 or self._mqtt_last_warning == 0:
-                _LOGGER.warning("Inverter MQTT publish failed (%s); retrying on next poll", type(exc).__name__)
+                _LOGGER.warning(
+                    "Inverter MQTT publish failed (%s); retrying on next poll",
+                    type(exc).__name__,
+                )
                 self._mqtt_last_warning = now
 
     async def _async_update_data(self):
