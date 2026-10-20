@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
+.venv/
+.env*
+secrets.yaml
+config.py
+*.log
+captures/
