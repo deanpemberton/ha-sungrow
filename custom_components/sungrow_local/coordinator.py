@@ -1,7 +1,9 @@
 """Coordinated polling and MQTT publication from one inverter snapshot."""
 
+import asyncio
 import json
 import logging
+from time import monotonic
 from datetime import UTC, datetime, timedelta
 
 from homeassistant.helpers.update_coordinator import (
@@ -27,6 +29,7 @@ class InverterCoordinator(DataUpdateCoordinator):
         else:
             prefix = self._mqtt_topic
         self._mqtt_status_topic = f"{prefix}/status"
+        self._mqtt_last_warning = 0.0
         super().__init__(
             hass,
             _LOGGER,
@@ -45,7 +48,7 @@ class InverterCoordinator(DataUpdateCoordinator):
         ):
             return
         try:
-            await self.hass.services.async_call(
+            await asyncio.wait_for(self.hass.services.async_call(
                 "mqtt",
                 "publish",
                 {
@@ -54,13 +57,13 @@ class InverterCoordinator(DataUpdateCoordinator):
                     "retain": True,
                     "qos": 0,
                 },
-                blocking=False,
-            )
+                blocking=True,
+            ), timeout=5)
             if available:
                 payload = self.driver.mqtt_payload(snapshot)
                 payload["_source"] = DOMAIN
                 payload["_last_update"] = datetime.now(UTC).isoformat()
-                await self.hass.services.async_call(
+                await asyncio.wait_for(self.hass.services.async_call(
                     "mqtt",
                     "publish",
                     {
@@ -71,10 +74,15 @@ class InverterCoordinator(DataUpdateCoordinator):
                         "retain": True,
                         "qos": 0,
                     },
-                    blocking=False,
+                    blocking=True,
                 )
-        except Exception:
-            _LOGGER.exception("Unable to publish inverter telemetry to MQTT")
+        except (Exception, asyncio.TimeoutError) as exc:
+            # MQTT is optional: never discard a successful inverter read.
+            # Throttle repeated failures while preserving the error type.
+            now = monotonic()
+            if now - self._mqtt_last_warning >= 300 or self._mqtt_last_warning == 0:
+                _LOGGER.warning("Inverter MQTT publish failed (%s); retrying on next poll", type(exc).__name__)
+                self._mqtt_last_warning = now
 
     async def _async_update_data(self):
         try:
