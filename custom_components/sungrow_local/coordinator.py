@@ -3,8 +3,8 @@
 import asyncio
 import json
 import logging
-from time import monotonic
 from datetime import UTC, datetime, timedelta
+from time import monotonic
 
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -75,8 +75,8 @@ class InverterCoordinator(DataUpdateCoordinator):
                         "qos": 0,
                     },
                     blocking=True,
-                )
-        except (Exception, asyncio.TimeoutError) as exc:
+                ), timeout=5)
+        except Exception as exc:
             # MQTT is optional: never discard a successful inverter read.
             # Throttle repeated failures while preserving the error type.
             now = monotonic()
