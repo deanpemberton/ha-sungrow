@@ -42,40 +42,45 @@ class InverterCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_publish_mqtt(self, snapshot, available: bool) -> None:
-        if (
-            not self._mqtt_topic
-            or not self.hass.services.has_service("mqtt", "publish")
+        if not self._mqtt_topic or not self.hass.services.has_service(
+            "mqtt", "publish"
         ):
             return
         try:
-            await asyncio.wait_for(self.hass.services.async_call(
-                "mqtt",
-                "publish",
-                {
-                    "topic": self._mqtt_status_topic,
-                    "payload": "online" if available else "offline",
-                    "retain": True,
-                    "qos": 0,
-                },
-                blocking=True,
-            ), timeout=5)
-            if available:
-                payload = self.driver.mqtt_payload(snapshot)
-                payload["_source"] = DOMAIN
-                payload["_last_update"] = datetime.now(UTC).isoformat()
-                await asyncio.wait_for(self.hass.services.async_call(
+            await asyncio.wait_for(
+                self.hass.services.async_call(
                     "mqtt",
                     "publish",
                     {
-                        "topic": self._mqtt_topic,
-                        "payload": json.dumps(
-                            payload, separators=(",", ":"), default=str
-                        ),
+                        "topic": self._mqtt_status_topic,
+                        "payload": "online" if available else "offline",
                         "retain": True,
                         "qos": 0,
                     },
                     blocking=True,
-                ), timeout=5)
+                ),
+                timeout=5,
+            )
+            if available:
+                payload = self.driver.mqtt_payload(snapshot)
+                payload["_source"] = DOMAIN
+                payload["_last_update"] = datetime.now(UTC).isoformat()
+                await asyncio.wait_for(
+                    self.hass.services.async_call(
+                        "mqtt",
+                        "publish",
+                        {
+                            "topic": self._mqtt_topic,
+                            "payload": json.dumps(
+                                payload, separators=(",", ":"), default=str
+                            ),
+                            "retain": True,
+                            "qos": 0,
+                        },
+                        blocking=True,
+                    ),
+                    timeout=5,
+                )
         except Exception as exc:
             # MQTT is optional: never discard a successful inverter read.
             # Throttle repeated failures while preserving the error type.
