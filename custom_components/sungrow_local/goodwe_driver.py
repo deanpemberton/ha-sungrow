@@ -238,7 +238,9 @@ class GoodWeDriver:
         # Home Assistant timestamp entities require timezone-aware values.
         timestamp = snapshot.get("goodwe_timestamp")
         if isinstance(timestamp, datetime) and timestamp.tzinfo is None:
-            snapshot["goodwe_timestamp"] = timestamp.replace(tzinfo=ZoneInfo("Pacific/Auckland"))
+            snapshot["goodwe_timestamp"] = timestamp.replace(
+                tzinfo=ZoneInfo("Pacific/Auckland")
+            )
 
         return snapshot
 
