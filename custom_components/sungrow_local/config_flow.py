@@ -122,17 +122,15 @@ class SungrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        "vendor", default="sungrow"
-                    ): selector.SelectSelector(
-                            selector.SelectSelectorConfig(
-                                options=[
-                                    {"value": key, "label": value}
-                                    for key, value in VENDORS.items()
-                                ],
-                                mode=selector.SelectSelectorMode.DROPDOWN,
-                            )
+                    vol.Required("vendor", default="sungrow"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                {"value": key, "label": value}
+                                for key, value in VENDORS.items()
+                            ],
+                            mode=selector.SelectSelectorMode.DROPDOWN,
                         )
+                    )
                 }
             ),
         )
@@ -167,9 +165,7 @@ class SungrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data = {**entry.data, **user_input, "vendor": vendor}
             errors = await validate(data)
             if not errors:
-                return self.async_update_reload_and_abort(
-                    entry, data_updates=data
-                )
+                return self.async_update_reload_and_abort(entry, data_updates=data)
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=schema(entry.data | entry.options),

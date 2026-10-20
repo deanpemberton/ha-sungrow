@@ -139,9 +139,7 @@ def decode_registers(registers: dict[int, int]) -> dict[str, float | int | None]
         "frequency": u16(5036, 10),
         "device_status": u16(5038),
         "fault_code": u16(5045),
-        "nominal_reactive_power": (
-            None if u16(5049) is None else u16(5049) * 100
-        ),
+        "nominal_reactive_power": (None if u16(5049) is None else u16(5049) * 100),
         "grid_power": s32(5083),
         "meter_phase_a_power": s32(5085),
         "meter_phase_b_power": s32(5087),
@@ -250,20 +248,15 @@ class SungrowClient:
                 key = None
             else:
                 key = bytes(
-                    a ^ b
-                    for a, b in zip(public_key, self.protocol_key, strict=True)
+                    a ^ b for a, b in zip(public_key, self.protocol_key, strict=True)
                 )
             self._cached_key = key
             self._cached_key_date = today
             return key
 
-    async def _read_block(
-        self, start: int, count: int, key: bytes | None
-    ) -> list[int]:
+    async def _read_block(self, start: int, count: int, key: bytes | None) -> list[int]:
         async with self._connection() as (reader, writer):
-            request = struct.pack(
-                ">HHHBBHH", 1, 0, 6, self.unit, 4, start - 1, count
-            )
+            request = struct.pack(">HHHBBHH", 1, 0, 6, self.unit, 4, start - 1, count)
             writer.write(encrypt_frame(request, key) if key is not None else request)
             await writer.drain()
 
@@ -272,9 +265,7 @@ class SungrowClient:
                 size = envelope[2] + envelope[3]
                 if size < 16 or size > 256 or size % 16:
                     raise ProtocolError("Invalid encrypted frame")
-                frame = decrypt_frame(
-                    envelope + await reader.readexactly(size), key, 1
-                )
+                frame = decrypt_frame(envelope + await reader.readexactly(size), key, 1)
                 header, body = frame[:7], frame[7:]
             else:
                 header = await reader.readexactly(7)

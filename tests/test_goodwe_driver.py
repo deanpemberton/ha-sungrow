@@ -95,12 +95,8 @@ async def test_ms_g3_exposes_three_mppts_and_meter_data():
 
 async def test_auto_transport_falls_back_from_udp_to_modbus_tcp():
     inverter = fake_inverter()
-    connect = AsyncMock(
-        side_effect=[InverterError("udp unavailable"), inverter]
-    )
-    with patch(
-        "custom_components.sungrow_local.goodwe_driver.goodwe.connect", connect
-    ):
+    connect = AsyncMock(side_effect=[InverterError("udp unavailable"), inverter])
+    with patch("custom_components.sungrow_local.goodwe_driver.goodwe.connect", connect):
         driver = GoodWeDriver("inverter.invalid", transport="auto")
         await driver.read()
 
@@ -113,9 +109,7 @@ async def test_auto_transport_falls_back_from_udp_to_modbus_tcp():
 async def test_selected_transport_is_cached_between_polls():
     inverter = fake_inverter()
     connect = AsyncMock(return_value=inverter)
-    with patch(
-        "custom_components.sungrow_local.goodwe_driver.goodwe.connect", connect
-    ):
+    with patch("custom_components.sungrow_local.goodwe_driver.goodwe.connect", connect):
         driver = GoodWeDriver("inverter.invalid", transport="tcp")
         await driver.read()
         await driver.read()
@@ -130,8 +124,7 @@ async def test_no_meter_hides_meter_entities():
     inverter.sensors = lambda: tuple(
         item
         for item in base_sensors
-        if not item.id_.startswith("meter_")
-        and item.id_ != "house_consumption"
+        if not item.id_.startswith("meter_") and item.id_ != "house_consumption"
     )
     inverter.read_runtime_data = AsyncMock(
         return_value={

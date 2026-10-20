@@ -1,8 +1,10 @@
 """Coordinated polling and MQTT publication from one inverter snapshot."""
 
+import asyncio
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from time import monotonic
 
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -27,6 +29,7 @@ class InverterCoordinator(DataUpdateCoordinator):
         else:
             prefix = self._mqtt_topic
         self._mqtt_status_topic = f"{prefix}/status"
+        self._mqtt_last_warning = 0.0
         super().__init__(
             hass,
             _LOGGER,
@@ -39,42 +42,55 @@ class InverterCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_publish_mqtt(self, snapshot, available: bool) -> None:
-        if (
-            not self._mqtt_topic
-            or not self.hass.services.has_service("mqtt", "publish")
+        if not self._mqtt_topic or not self.hass.services.has_service(
+            "mqtt", "publish"
         ):
             return
         try:
-            await self.hass.services.async_call(
-                "mqtt",
-                "publish",
-                {
-                    "topic": self._mqtt_status_topic,
-                    "payload": "online" if available else "offline",
-                    "retain": True,
-                    "qos": 0,
-                },
-                blocking=False,
+            await asyncio.wait_for(
+                self.hass.services.async_call(
+                    "mqtt",
+                    "publish",
+                    {
+                        "topic": self._mqtt_status_topic,
+                        "payload": "online" if available else "offline",
+                        "retain": True,
+                        "qos": 0,
+                    },
+                    blocking=True,
+                ),
+                timeout=5,
             )
             if available:
                 payload = self.driver.mqtt_payload(snapshot)
                 payload["_source"] = DOMAIN
                 payload["_last_update"] = datetime.now(UTC).isoformat()
-                await self.hass.services.async_call(
-                    "mqtt",
-                    "publish",
-                    {
-                        "topic": self._mqtt_topic,
-                        "payload": json.dumps(
-                            payload, separators=(",", ":"), default=str
-                        ),
-                        "retain": True,
-                        "qos": 0,
-                    },
-                    blocking=False,
+                await asyncio.wait_for(
+                    self.hass.services.async_call(
+                        "mqtt",
+                        "publish",
+                        {
+                            "topic": self._mqtt_topic,
+                            "payload": json.dumps(
+                                payload, separators=(",", ":"), default=str
+                            ),
+                            "retain": True,
+                            "qos": 0,
+                        },
+                        blocking=True,
+                    ),
+                    timeout=5,
                 )
-        except Exception:
-            _LOGGER.exception("Unable to publish inverter telemetry to MQTT")
+        except Exception as exc:
+            # MQTT is optional: never discard a successful inverter read.
+            # Throttle repeated failures while preserving the error type.
+            now = monotonic()
+            if now - self._mqtt_last_warning >= 300 or self._mqtt_last_warning == 0:
+                _LOGGER.warning(
+                    "Inverter MQTT publish failed (%s); retrying on next poll",
+                    type(exc).__name__,
+                )
+                self._mqtt_last_warning = now
 
     async def _async_update_data(self):
         try:

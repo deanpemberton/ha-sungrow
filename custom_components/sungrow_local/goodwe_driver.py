@@ -8,11 +8,10 @@ retaining every additional runtime sensor exposed by the library.
 
 from __future__ import annotations
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 import logging
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import goodwe
 from goodwe.exceptions import InverterError
@@ -239,7 +238,9 @@ class GoodWeDriver:
         # Home Assistant timestamp entities require timezone-aware values.
         timestamp = snapshot.get("goodwe_timestamp")
         if isinstance(timestamp, datetime) and timestamp.tzinfo is None:
-            snapshot["goodwe_timestamp"] = timestamp.replace(tzinfo=ZoneInfo("Pacific/Auckland"))
+            snapshot["goodwe_timestamp"] = timestamp.replace(
+                tzinfo=ZoneInfo("Pacific/Auckland")
+            )
 
         return snapshot
 
