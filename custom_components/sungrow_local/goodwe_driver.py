@@ -8,11 +8,10 @@ retaining every additional runtime sensor exposed by the library.
 
 from __future__ import annotations
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 import logging
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import goodwe
 from goodwe.exceptions import InverterError
